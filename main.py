@@ -28,3 +28,6 @@ if __name__ == "__main__":
     delete_LAN_ip(rcp_ip)
     setup_autobridge(rcp_ip, "0")
     add_LAN_ip(rcp_ip, "LAN1", "10.193.1.1", "255.255.0.0")
+    delete_tally_actions(rio_ip)
+    set_tally_action(rio_ip, 1, "1:PWR")
+    set_tally_action(rio_ip, 2, "2:PWR")

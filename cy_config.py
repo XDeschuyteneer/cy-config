@@ -5,13 +5,15 @@ def check_answer(ws):
     change = None
     while True:
         change = json.loads(ws.recv())
-        if change["type"] == "action_reply":
-            break
-        elif change["type"] == "option_reply":
-            break
+        if "type" in change:     
+            if change["type"] == "action_reply":
+                break
+            elif change["type"] == "option_reply":
+                break
+            else:
+                print("unsupported type", change["type"], change)
         else:
-            print("unsupported type", change["type"], change)
-    print(change)
+            return None
     if not change["payload"]:
         return None
     else:
@@ -26,8 +28,8 @@ def do_action(ws, action, param):
     })
     print(data)
     ws.send(data)
-    cam_id = check_answer(ws)[1]
-    return cam_id
+    response = check_answer(ws)
+    return response[1] if response else None
 
 def get_option(ws, item_id, option):
     data = json.dumps({
@@ -64,7 +66,6 @@ def setup_lens(ws, cam_id, lens_type, lens_port, lens_option=""):
         CI0_port = lens_port.split(":")[1]
         for itf in lens_interfaces:
             if itf[0]["device"] == CI0_serial and itf[0]["port"] == CI0_port:
-                print(itf[1][0])
                 port_id = itf[1][0]["connect"][0]
                 connect(ws, port_id, f"{cam_id}_l")
                 change(ws, f"{cam_id}_l", "params", lens_option)
@@ -192,23 +193,6 @@ def get_cam_id(ip, cam_number):
                 return cam_id
     finally:
         ws.close()
-
-def get_input_id(ip, router_name, input_number):
-    url = f"ws://{ip}/ws/ui"
-    ws = websocket.WebSocket()
-    try:
-        ws.connect(url)
-        config = json.loads(ws.recv())
-        router_id = get_router_id(ip, router_name)
-        if router_id:
-            for input_id in config["payload"]["Router"][router_id]["Inputs"]:
-                pass
-                # print(config["payload"]["Router"][router_id])
-                # if config["payload"]["Router"][router_id]["Inputs"][input_id]["Position"] == str(input_number):
-                #     return input_id
-    finally:
-        ws.close()
-
 
 def link_input(ip, router_name, cam_number, input_number):
     url = f"ws://{ip}/ws/ui"
@@ -357,6 +341,58 @@ def add_LAN_ip(ip, lan_itf, lan_ip, lan_mask):
         change(ws, new_id, "interface", lan_itf)
         change(ws, new_id, "ip", lan_ip)
         change(ws, new_id, "mask", lan_mask)
+    finally:
+        print("closing socket")
+        ws.close()
+
+def get_port_id(ip, port_name):
+    url = f"ws://{ip}/ws"
+    ws = websocket.WebSocket()
+    try:
+        ws.connect(url)
+        config = json.loads(ws.recv())["payload"]
+        
+    finally:
+        ws.close()
+
+def get_GPO_id(ip, gpo_name):
+    url = f"ws://{ip}/ws"
+    ws = websocket.WebSocket()
+    try:
+        ws.connect(url)
+        config = json.loads(ws.recv())["elements"]
+        for element in config:
+            if element["module"] == "CyElement.NetGpio.GPO":
+                if element["properties"]["name"] == gpo_name:
+                    return element["key"]
+    finally:
+        print("closing socket")
+        ws.close()
+
+def delete_tally_actions(ip):
+    url = f"ws://{ip}/ws"
+    ws = websocket.WebSocket()
+    try:
+        ws.connect(url)
+        config = json.loads(ws.recv())["elements"]
+        for element in config:
+            if element["module"] == "CyElement.TallyAction":
+                print(element)
+                ws.send(json.dumps({"delete":[element["key"]]}))
+    finally:
+        print("closing socket")
+        ws.close()
+
+
+def set_tally_action(ip, cam_number, gpo_name, tally_type="red"):
+    # {"new":["CyElement.TallyAction","red","","qxtj77","arv790_O5"]}
+    url = f"ws://{ip}/ws"
+    ws = websocket.WebSocket()
+    try:
+        ws.connect(url)
+        cam_id = get_cam_id(ip, cam_number)
+        gpo_id = get_GPO_id(ip, gpo_name)
+        ws.send(json.dumps({"new":["CyElement.TallyAction","red","",cam_id, gpo_id]}))
     finally:
         print("closing socket")
         ws.close()
