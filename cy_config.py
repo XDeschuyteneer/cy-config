@@ -1,6 +1,8 @@
 import websocket
 import json
 
+debug=False
+
 def check_answer(ws):
     change = None
     while True:
@@ -26,9 +28,11 @@ def do_action(ws, action, param):
             action : param
         }
     })
-    print(data)
+    if debug:
+        print("\t>",data)
     ws.send(data)
     response = check_answer(ws)
+    print("\t<", response)
     return response[1] if response else None
 
 def get_option(ws, item_id, option):
@@ -36,7 +40,8 @@ def get_option(ws, item_id, option):
         "type" : "option_request",
         "request" : [item_id, option]
     })
-    print(data)
+    if debug:
+        print(data)
     ws.send(data)
     response = check_answer(ws)
     return response   
@@ -59,6 +64,7 @@ def connect(ws, A_id, B_id):
     return do_action(ws, "connect", [A_id, B_id])
 
 def setup_lens(ws, cam_id, lens_type, lens_port, lens_option=""):
+    print("setup lens", cam_id, lens_type, lens_port, lens_option)
     try:
         change(ws, f"{cam_id}_l", "model", lens_type)
         lens_interfaces = get_option(ws, cam_id, "LensInterface")
@@ -72,19 +78,37 @@ def setup_lens(ws, cam_id, lens_type, lens_port, lens_option=""):
     except:
         print("no lens setup")
 
-def setup_remi(ip, tags):
+def get_remi_id(ip):
     url = f"ws://{ip}/ws/ui"
     ws = websocket.WebSocket()
     try:
         ws.connect(url)
         config = json.loads(ws.recv())
-        remi_id = next(iter(config["payload"]["Remi"]))
+        for remi_id in config["payload"]["Remi"]:
+            remi_config = config["payload"]["Remi"][remi_id]
+            if "Active" in remi_config and remi_config["Active"] == "1":
+                return remi_id
+    finally:
+        ws.close()
+
+def delete_remi(ip):
+    return setup_remi(ip, "")
+
+def setup_remi(ip, tags):
+    print("setup remi", ip, tags)
+    url = f"ws://{ip}/ws/ui"
+    ws = websocket.WebSocket()
+    try:
+        ws.connect(url)
+        config = json.loads(ws.recv())
+        remi_id = get_remi_id(ip)
         change(ws, remi_id, "tags", tags)
     finally:
         ws.close()
 
     
 def setup_cam(ip, cam_number, cam_name, cam_model, cam_ip, cam_login, cam_passwd, lens_type, lens_port, lens_option):
+    print("setup cam", ip, cam_number, cam_name, cam_model, cam_ip, cam_login, cam_passwd, lens_type, lens_port, lens_option)
     url = f"ws://{ip}/ws/ui"
     ws = websocket.WebSocket()
     try:
@@ -112,10 +136,10 @@ def setup_cam(ip, cam_number, cam_name, cam_model, cam_ip, cam_login, cam_passwd
     except Exception as e:
         print(e, "| line", e.__traceback__.tb_lineno)
     finally:
-        print("closing socket")
         ws.close()
 
 def import_cam(ip, device, cam_number):
+    print("import cam", ip, device, cam_number)
     url = f"ws://{ip}/ws/ui"
     ws = websocket.WebSocket()
     try:
@@ -136,10 +160,10 @@ def import_cam(ip, device, cam_number):
         if imported_cam_id:
             change(ws, imported_cam_id, "auto_camera", "1")
     finally:
-        print("closing socket")
         ws.close()
 
 def delete_routers(ip):
+    print("delete routers", ip)
     url = f"ws://{ip}/ws/ui"
     ws = websocket.WebSocket()
     try:
@@ -151,6 +175,7 @@ def delete_routers(ip):
         ws.close()
 
 def setup_router(ip, model, name, router_ip, input_range, output_range, red_tally, green_tally, shared="1"):
+    print("setup router", ip, model, name, router_ip, input_range, output_range, red_tally, green_tally, shared)
     url = f"ws://{ip}/ws/ui"
     ws = websocket.WebSocket()
     try:
@@ -166,7 +191,6 @@ def setup_router(ip, model, name, router_ip, input_range, output_range, red_tall
 
         return router_id
     finally:
-        print("closing socket")
         ws.close()     
 
 
@@ -195,6 +219,7 @@ def get_cam_id(ip, cam_number):
         ws.close()
 
 def link_input(ip, router_name, cam_number, input_number):
+    print("link input", ip, router_name, cam_number, input_number)
     url = f"ws://{ip}/ws/ui"
     ws = websocket.WebSocket()
     try:
@@ -209,7 +234,6 @@ def link_input(ip, router_name, cam_number, input_number):
                         for action_name in action:
                             do_action(ws, action_name, action[action_name])
     finally:
-        print("closing socket")
         ws.close()
 
 def cleanup_router_input(ip, router_name):
@@ -227,10 +251,10 @@ def cleanup_router_input(ip, router_name):
                         for action_name in action:
                             do_action(ws, action_name, action[action_name])
     finally:
-        print("closing socket")
         ws.close()
 
 def link_output(ip, router_name, monitor_name, output_number):
+    print("link output", ip, router_name, monitor_name, output_number)
     url = f"ws://{ip}/ws/ui"
     ws = websocket.WebSocket()
     try:
@@ -245,12 +269,12 @@ def link_output(ip, router_name, monitor_name, output_number):
                     for action_name in action:
                         do_action(ws, action_name, action[action_name])
     finally:
-        print("closing socket")
         ws.close()
 
 
 
 def delete_ccs(ip):
+    print("delete ccs", ip)
     url = f"ws://{ip}/ws/ui"
     ws = websocket.WebSocket()
     try:
@@ -263,6 +287,7 @@ def delete_ccs(ip):
 
 
 def setup_cc(ip, model, name, cc_ip):
+    print("setup cc", ip, model, name, cc_ip)
     url = f"ws://{ip}/ws/ui"
     ws = websocket.WebSocket()
     try:
@@ -272,7 +297,6 @@ def setup_cc(ip, model, name, cc_ip):
         change(ws, cc_id, "name", name)
         change(ws, cc_id, "ip", cc_ip)
     finally:
-        print("closing socket")
         ws.close()
 
 def get_cc_id(ip, cc_name):
@@ -288,6 +312,7 @@ def get_cc_id(ip, cc_name):
         ws.close()
 
 def link_cc(ip, cc_chanel, cam_number):
+    print("link cc", ip, cc_chanel, cam_number)
     url = f"ws://{ip}/ws/ui"
     ws = websocket.WebSocket()
     try:
@@ -306,6 +331,7 @@ def link_cc(ip, cc_chanel, cam_number):
         ws.close()
 
 def setup_autobridge(ip, bridge_value):
+    print("setup autobridge", ip, bridge_value)
     url = f"ws://{ip}/ws/ui"
     ws = websocket.WebSocket()
     try:
@@ -316,10 +342,10 @@ def setup_autobridge(ip, bridge_value):
         print(global_id)
         change(ws, global_id, "auto_network_bridge", str(bridge_value))
     finally:
-        print("closing socket")
         ws.close()
 
 def delete_LAN_ip(ip):
+    print("delete LAN ip", ip)
     url = f"ws://{ip}/ws/ui"
     ws = websocket.WebSocket()
     try:
@@ -328,10 +354,10 @@ def delete_LAN_ip(ip):
         for lan_id in config["IP"]:
             do_action(ws, "delete", [lan_id])
     finally:
-        print("closing socket")
         ws.close()
 
 def add_LAN_ip(ip, lan_itf, lan_ip, lan_mask):
+    print("add LAN ip", ip, lan_itf, lan_ip, lan_mask)
     url = f"ws://{ip}/ws/ui"
     ws = websocket.WebSocket()
     try:
@@ -342,7 +368,6 @@ def add_LAN_ip(ip, lan_itf, lan_ip, lan_mask):
         change(ws, new_id, "ip", lan_ip)
         change(ws, new_id, "mask", lan_mask)
     finally:
-        print("closing socket")
         ws.close()
 
 def get_port_id(ip, port_name):
@@ -351,7 +376,6 @@ def get_port_id(ip, port_name):
     try:
         ws.connect(url)
         config = json.loads(ws.recv())["payload"]
-        
     finally:
         ws.close()
 
@@ -366,7 +390,6 @@ def get_GPO_id(ip, gpo_name):
                 if element["properties"]["name"] == gpo_name:
                     return element["key"]
     finally:
-        print("closing socket")
         ws.close()
 
 def delete_tally_actions(ip):
@@ -380,12 +403,11 @@ def delete_tally_actions(ip):
                 print(element)
                 ws.send(json.dumps({"delete":[element["key"]]}))
     finally:
-        print("closing socket")
         ws.close()
 
 
 def set_tally_action(ip, cam_number, gpo_name, tally_type="red"):
-    # {"new":["CyElement.TallyAction","red","","qxtj77","arv790_O5"]}
+    print("set tally action", ip, cam_number, gpo_name, tally_type)
     url = f"ws://{ip}/ws"
     ws = websocket.WebSocket()
     try:
@@ -394,7 +416,6 @@ def set_tally_action(ip, cam_number, gpo_name, tally_type="red"):
         gpo_id = get_GPO_id(ip, gpo_name)
         ws.send(json.dumps({"new":["CyElement.TallyAction","red","",cam_id, gpo_id]}))
     finally:
-        print("closing socket")
         ws.close()
 
 def list_config_blocks(ip):
