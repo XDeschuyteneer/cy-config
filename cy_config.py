@@ -23,12 +23,10 @@ def check_answer(ws):
     else:
         return change["payload"]
 
-def do_action(ws, action, param):
+def do_action(ws, actions):
     data = json.dumps({
         "type" : "action_request",
-        "request" : {
-            action : param
-        }
+        "request" : actions
     })
     if debug:
         print("\t>",data)
@@ -36,7 +34,17 @@ def do_action(ws, action, param):
     response = check_answer(ws)
     if debug:
         print("\t<", response)
-    return response[1] if response else None
+    
+    return response[-1] if response else None
+
+def do_action_no_ws(ip, actions):
+    url = f"ws://{ip}/ws/ui"
+    ws = websocket.WebSocket()
+    try:
+        ws.connect(url)
+        do_action(ws, actions)
+    finally:
+        ws.close()
 
 def get_option(ws, item_id, option):
     data = json.dumps({
@@ -58,15 +66,39 @@ def delete_cams(ip):
         ws.connect(url)
         config = json.loads(ws.recv())
         for cam_id in config["payload"]["Camera"]:
-            do_action(ws, "delete", [cam_id])
+            do_action(ws, {"delete" : [cam_id]})
     finally:
         ws.close()
 
 def change(ws, cam_id, key, value):
-    return do_action(ws, "update", {"key" : cam_id, "changes" : { key : value }})
+    return do_action(ws, {"update" : {"key" : cam_id, "changes" : { key : value }}})
 
 def connect(ws, A_id, B_id):
-    return do_action(ws, "connect", [A_id, B_id])
+    return do_action(ws, {"connect" : [A_id, B_id]})
+
+def connect2(A_id, B_id):
+    url = f"ws://{ip}/ws/ui"
+    ws = websocket.WebSocket()
+    try:
+        ws.connect(url)
+        connect(ws, A_id, B_id)
+    finally:
+        ws.close()
+
+def get_port_id(ip, cam_id, port_name, port_type):
+    print("get_port_id lens", cam_id, port_name)
+    url = f"ws://{ip}/ws/ui"
+    ws = websocket.WebSocket()
+    try:
+        ws.connect(url)
+        port_interfaces = get_option(ws, cam_id, port_type)
+        CI0_serial = ":".join(port_name.split(":")[0:-1])
+        CI0_port = port_name.split(":")[-1]
+        for itf in port_interfaces:
+            if itf[0]["device"] == CI0_serial and itf[0]["port"] == CI0_port:
+                return itf[1]
+    finally:
+        ws.close()
 
 def setup_lens(ip, cam_id, lens_type, lens_port, lens_option=""):
     print("setup lens", cam_id, lens_type, lens_port, lens_option)
@@ -75,14 +107,9 @@ def setup_lens(ip, cam_id, lens_type, lens_port, lens_option=""):
     try:
         ws.connect(url)
         change(ws, f"{cam_id}_l", "model", lens_type)
-        lens_interfaces = get_option(ws, cam_id, "LensInterface")
-        CI0_serial = lens_port.split(":")[0]
-        CI0_port = lens_port.split(":")[1]
-        for itf in lens_interfaces:
-            if itf[0]["device"] == CI0_serial and itf[0]["port"] == CI0_port:
-                port_id = itf[1][0]["connect"][0]
-                connect(ws, port_id, f"{cam_id}_l")
-                change(ws, f"{cam_id}_l", "params", lens_option)
+        port_actions = get_port_id(ip, cam_id, lens_port, "LensInterface")
+        do_action(ws, port_actions)
+        return change(ws, f"{cam_id}_l", "params", lens_option)
     finally:
         ws.close()
 
@@ -121,33 +148,42 @@ def add_remi(ip, tag):
     return setup_remi(ip, tags)
 
     
-def setup_cam(ip, cam_number, cam_name, cam_model, cam_ip, cam_login, cam_passwd):
-    print("setup cam", ip, cam_number, cam_name, cam_model, cam_ip, cam_login, cam_passwd)
+def setup_cam(ip, cam_number, cam_name, cam_model):
+    print("setup cam", ip, cam_number, cam_name, cam_model)
     url = f"ws://{ip}/ws/ui"
     ws = websocket.WebSocket()
     try:
         ws.connect(url)
         config = json.loads(ws.recv())
         # create new camera
-        cam_id = do_action(ws, "new", ["CyElement.Camera"])
+        cam_id = do_action(ws, {"new" : ["CyElement.Camera"]})
         change(ws, cam_id, "number", str(cam_number))
         change(ws, cam_id, "name", str(cam_name))
         change(ws, cam_id, "model", str(cam_model))
+        return cam_id
+    finally:
+        ws.close()
 
+def add_cam_ip(ip, cam_number, cam_ip, cam_login, cam_passwd):
+    print("add cam ip", ip, cam_ip, cam_login, cam_passwd)
+    url = f"ws://{ip}/ws/ui"
+    ws = websocket.WebSocket()
+    try:
+        ws.connect(url)
         # camhead
+        cam_id = get_cam_id(ip, cam_number)
         ip_id = get_option(ws, cam_id, "IP")["key"]
         change(ws, ip_id, "ip", str(cam_ip))
         change(ws, ip_id, "login", str(cam_login))
         change(ws, ip_id, "password", str(cam_passwd))
-
-        return cam_id
-
-    except KeyboardInterrupt as e:
-        print("CTRL+C pressed")
-    except Exception as e:
-        print(e, "| line", e.__traceback__.tb_lineno)
     finally:
         ws.close()
+
+def add_cam_serial(ip, cam_number, cam_port):
+    print("add cam serial", ip, cam_number, cam_port)
+    cam_id = get_cam_id(ip, cam_number)
+    port_action = get_port_id(ip, cam_id, cam_port, "Interface")
+    do_action_no_ws(ip, port_action)
 
 def add_lens(ip, cam_number, lens_type, lens_port, lens_option=""):
     print("add lens", ip, cam_number, lens_type, lens_port, lens_option)
@@ -175,7 +211,8 @@ def import_cam(ip, device, cam_number):
                                     imported_cam_id = cam[3]
                                     break
         if imported_cam_id:
-            change(ws, imported_cam_id, "auto_camera", "1")
+            cam_id = change(ws, imported_cam_id, "auto_camera", "1")
+            return cam_id
     finally:
         ws.close()
 
@@ -187,7 +224,7 @@ def delete_routers(ip):
         ws.connect(url)
         config = json.loads(ws.recv())
         for router_id in config["payload"]["Router"]:
-            do_action(ws, "delete", [router_id])
+            do_action(ws, {"delete" : [router_id]})
     finally:
         ws.close()
 
@@ -197,7 +234,7 @@ def setup_router(ip, model, name, router_ip, input_range, output_range, red_tall
     ws = websocket.WebSocket()
     try:
         ws.connect(url)
-        router_id = do_action(ws, "new", [f"CyElement.{model}"])
+        router_id = do_action(ws, {"new" : [f"CyElement.{model}"]})
         change(ws, router_id, "name", name)
         change(ws, router_id, "ip", router_ip)
         change(ws, router_id, "num_inputs", input_range)
@@ -247,9 +284,8 @@ def link_input(ip, router_name, cam_number, input_number):
         for cam_entry in router_inputs[str(input_number)]:
             if cam_entry[0]:
                 if cam_entry[0].split(" ")[0] == str(cam_number):
-                    for action in cam_entry[1]:
-                        for action_name in action:
-                            do_action(ws, action_name, action[action_name])
+                    for actions in cam_entry[1]:
+                        do_action(ws, actions)
     finally:
         ws.close()
 
@@ -265,8 +301,7 @@ def cleanup_router_input(ip, router_name):
             for cam_entry in router_inputs[input_number]:
                 for action in cam_entry[1]:
                     if not cam_entry[0] and 'delete' in action:
-                        for action_name in action:
-                            do_action(ws, action_name, action[action_name])
+                        do_action(ws, action)
     finally:
         ws.close()
 
@@ -282,9 +317,8 @@ def link_output(ip, router_name, monitor_name, output_number):
         router_outputs = get_option(ws, router_id, "Outputs")
         for output_entry in router_outputs[str(output_number)]:
             if output_entry[0]:
-                for action in output_entry[1]:
-                    for action_name in action:
-                        do_action(ws, action_name, action[action_name])
+                for actions in output_entry[1]:
+                    do_action(ws, actions)
     finally:
         ws.close()
 
@@ -298,7 +332,7 @@ def delete_ccs(ip):
         ws.connect(url)
         config = json.loads(ws.recv())
         for cam_id in config["payload"]["Video Processor"]:
-            do_action(ws, "delete", [cam_id])
+            do_action(ws, {"delete" : [cam_id]})
     finally:
         ws.close()
 
@@ -309,7 +343,7 @@ def setup_cc(ip, model, name, cc_ip):
     ws = websocket.WebSocket()
     try:
         ws.connect(url)
-        cc_id = do_action(ws, "new", [f"CyElement.{model}"])
+        cc_id = do_action(ws, {"new" : [f"CyElement.{model}"]})
         change(ws, cc_id, "name", name)
         change(ws, cc_id, "ip", cc_ip)
     finally:
@@ -340,9 +374,8 @@ def link_cc(ip, cc_chanel, cam_number):
             if 'Name' in channel[0]:
                 exp_cc_channel = f"{channel[0]['Name']}:{channel[0]['Input']}"
                 if  exp_cc_channel == cc_chanel:
-                    for action in channel[1]:
-                        for action_name in action:
-                            do_action(ws, action_name, action[action_name])
+                    for actions in channel[1]:
+                        do_action(ws, actions)
     finally:
         ws.close()
 
@@ -366,7 +399,7 @@ def delete_LAN_ip(ip):
         ws.connect(url)
         config = json.loads(ws.recv())["payload"]
         for lan_id in config["IP"]:
-            do_action(ws, "delete", [lan_id])
+            do_action(ws, {"delete" : [lan_id]})
     finally:
         ws.close()
 
@@ -377,19 +410,10 @@ def add_LAN_ip(ip, lan_itf, lan_ip, lan_mask):
     try:
         ws.connect(url)
         config = json.loads(ws.recv())["payload"]
-        new_id = do_action(ws, "new", ["CyElement.LanIp"])
+        new_id = do_action(ws, {"new" : ["CyElement.LanIp"]})
         change(ws, new_id, "interface", lan_itf)
         change(ws, new_id, "ip", lan_ip)
         change(ws, new_id, "mask", lan_mask)
-    finally:
-        ws.close()
-
-def get_port_id(ip, port_name):
-    url = f"ws://{ip}/ws"
-    ws = websocket.WebSocket()
-    try:
-        ws.connect(url)
-        config = json.loads(ws.recv())["payload"]
     finally:
         ws.close()
 
@@ -433,6 +457,30 @@ def set_tally_action(ip, cam_number, gpo_name, tally_type="red"):
         ws.send(json.dumps(msg))
     finally:
         ws.close()
+
+def delete_BUS(ip):
+    url = f"ws://{ip}/ws/ui"
+    ws = websocket.WebSocket()
+    try:
+        ws.connect(url)
+        config = json.loads(ws.recv())["payload"]
+        for bus_id in config["Bus"]:
+            do_action(ws, {"delete" : [bus_id]})
+    finally:
+        ws.close()
+
+def create_BUS(ip, bus_type, bus_port):
+    print("create BUS", ip, bus_type, bus_port)
+    url = f"ws://{ip}/ws/ui"
+    ws = websocket.WebSocket()
+    try:
+        ws.connect(url)
+        bus_id  = do_action(ws, {"new" : ["CyElement.Bus", bus_type]})
+        port_action = get_port_id(ip, bus_id, bus_port, "Interface")
+        do_action(ws, port_action)
+    finally:
+        ws.close()
+
 
 def list_config_blocks(ip):
     url = f"ws://{ip}/ws/ui"

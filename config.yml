@@ -14,28 +14,29 @@ cy-rio-50-22:
     - number: 1
       name: cam1
       model: SonyFX9
-      ip: 10.192.1.1
-      login: admin
-      password: admin
+      ip:
+        ip: 10.192.1.1
+        login: admin
+        password: admin
     - number: 2
-      name: cam2
-      model: SonyFX9
-      ip: 10.192.1.2
-      login: admin
-      password: admin
-      lens:
-        model: sony
-        itf: RIO-50-22:1
+      name: DC
+      model: AtomOne
+      serial:
+        port: "RIO-50-22:1"
     - number: 3
       name: cam3
       model: SonyFX9
-      ip: 10.192.1.3
-      login: admin
-      password: admin
+      ip:
+        ip: 10.192.1.3
+        login: admin
+        password: admin
       lens:
         model: tilta
         itf: RIO-50-22:2
         options: 3:I:2.8:22
+    - number: 4
+      name: FX3
+      model: SonyDslr
   - tally_actions:
     - cam_number: 1
       GPO: "1:PWR"
@@ -63,14 +64,30 @@ cy-rcp-40-142:
     - model: Boxio
       ip: 1.2.3.5
       name: "CC2"
+  - bus:
+      - type: "bm"
+        port: "CI0-31-71:3"
   - cameras:
-    - number: 4
+    - number: 5
       name: cam4
       model: SonyFX9
-      ip: 10.192.1.4
-      login: admin
-      password: admin
+      ip:
+        ip: 10.192.1.4
+        login: admin
+        password: admin
       cc: "CC1:2"
+    - number: 6
+      name: cam5
+      model: SonyFr7
+      ip:
+        ip: 10.192.1.7
+        login: admin
+        password: admin
+    - number: 7
+      name: "URSA G2"
+      model: "BlackMagic"
+      serial:
+        port: "CI0-31-71:3:BmBus:1"
   - imported:
     - from: cy-rio-50-22
       number: 1
@@ -78,6 +95,9 @@ cy-rcp-40-142:
       number: 2
     - from: cy-rio-50-22
       number: 3
+    - from: cy-rio-50-22
+      number: 4
+      cc: "CC1:1"
   - routers:
     - model: AtemSwitcher
       name : "ATEM1"
