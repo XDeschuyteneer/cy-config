@@ -12,6 +12,8 @@ def check_answer(ws):
                 break
             elif change["type"] == "option_reply":
                 break
+            elif change["type"] == "config_data":
+                pass
             else:
                 print("unsupported type", change["type"], change)
         else:
@@ -32,7 +34,8 @@ def do_action(ws, action, param):
         print("\t>",data)
     ws.send(data)
     response = check_answer(ws)
-    print("\t<", response)
+    if debug:
+        print("\t<", response)
     return response[1] if response else None
 
 def get_option(ws, item_id, option):
@@ -41,9 +44,11 @@ def get_option(ws, item_id, option):
         "request" : [item_id, option]
     })
     if debug:
-        print(data)
+        print("\t>", data)
     ws.send(data)
     response = check_answer(ws)
+    if debug:
+        print("\t<", response)
     return response   
 
 def delete_cams(ip):
@@ -63,9 +68,12 @@ def change(ws, cam_id, key, value):
 def connect(ws, A_id, B_id):
     return do_action(ws, "connect", [A_id, B_id])
 
-def setup_lens(ws, cam_id, lens_type, lens_port, lens_option=""):
+def setup_lens(ip, cam_id, lens_type, lens_port, lens_option=""):
     print("setup lens", cam_id, lens_type, lens_port, lens_option)
+    url = f"ws://{ip}/ws/ui"
+    ws = websocket.WebSocket()
     try:
+        ws.connect(url)
         change(ws, f"{cam_id}_l", "model", lens_type)
         lens_interfaces = get_option(ws, cam_id, "LensInterface")
         CI0_serial = lens_port.split(":")[0]
@@ -75,8 +83,8 @@ def setup_lens(ws, cam_id, lens_type, lens_port, lens_option=""):
                 port_id = itf[1][0]["connect"][0]
                 connect(ws, port_id, f"{cam_id}_l")
                 change(ws, f"{cam_id}_l", "params", lens_option)
-    except:
-        print("no lens setup")
+    finally:
+        ws.close()
 
 def get_remi_id(ip):
     url = f"ws://{ip}/ws/ui"
@@ -87,7 +95,7 @@ def get_remi_id(ip):
         for remi_id in config["payload"]["Remi"]:
             remi_config = config["payload"]["Remi"][remi_id]
             if "Active" in remi_config and remi_config["Active"] == "1":
-                return remi_id
+                return remi_id, remi_config["Tags"]
     finally:
         ws.close()
 
@@ -101,14 +109,20 @@ def setup_remi(ip, tags):
     try:
         ws.connect(url)
         config = json.loads(ws.recv())
-        remi_id = get_remi_id(ip)
+        remi_id, _ = get_remi_id(ip)
         change(ws, remi_id, "tags", tags)
     finally:
         ws.close()
 
+def add_remi(ip, tag):
+    print("add remi", ip, tag)
+    remi_id, remi_tags = get_remi_id(ip)
+    tags = ",".join(remi_tags + [tag])
+    return setup_remi(ip, tags)
+
     
-def setup_cam(ip, cam_number, cam_name, cam_model, cam_ip, cam_login, cam_passwd, lens_type, lens_port, lens_option):
-    print("setup cam", ip, cam_number, cam_name, cam_model, cam_ip, cam_login, cam_passwd, lens_type, lens_port, lens_option)
+def setup_cam(ip, cam_number, cam_name, cam_model, cam_ip, cam_login, cam_passwd):
+    print("setup cam", ip, cam_number, cam_name, cam_model, cam_ip, cam_login, cam_passwd)
     url = f"ws://{ip}/ws/ui"
     ws = websocket.WebSocket()
     try:
@@ -116,18 +130,15 @@ def setup_cam(ip, cam_number, cam_name, cam_model, cam_ip, cam_login, cam_passwd
         config = json.loads(ws.recv())
         # create new camera
         cam_id = do_action(ws, "new", ["CyElement.Camera"])
-        change(ws, cam_id, "number", cam_number)
-        change(ws, cam_id, "name", cam_name)
-        change(ws, cam_id, "model", cam_model)
+        change(ws, cam_id, "number", str(cam_number))
+        change(ws, cam_id, "name", str(cam_name))
+        change(ws, cam_id, "model", str(cam_model))
 
         # camhead
         ip_id = get_option(ws, cam_id, "IP")["key"]
-        change(ws, ip_id, "ip", cam_ip)
-        change(ws, ip_id, "login", cam_login)
-        change(ws, ip_id, "password", cam_passwd)
-
-        # lens
-        setup_lens(ws, cam_id, lens_type, lens_port, lens_option)
+        change(ws, ip_id, "ip", str(cam_ip))
+        change(ws, ip_id, "login", str(cam_login))
+        change(ws, ip_id, "password", str(cam_passwd))
 
         return cam_id
 
@@ -137,6 +148,12 @@ def setup_cam(ip, cam_number, cam_name, cam_model, cam_ip, cam_login, cam_passwd
         print(e, "| line", e.__traceback__.tb_lineno)
     finally:
         ws.close()
+
+def add_lens(ip, cam_number, lens_type, lens_port, lens_option=""):
+    print("add lens", ip, cam_number, lens_type, lens_port, lens_option)
+    cam_id = get_cam_id(ip, cam_number)
+    return setup_lens(ip, cam_id, lens_type, lens_port, lens_option)
+
 
 def import_cam(ip, device, cam_number):
     print("import cam", ip, device, cam_number)
@@ -293,7 +310,6 @@ def setup_cc(ip, model, name, cc_ip):
     try:
         ws.connect(url)
         cc_id = do_action(ws, "new", [f"CyElement.{model}"])
-        print(cc_id)
         change(ws, cc_id, "name", name)
         change(ws, cc_id, "ip", cc_ip)
     finally:
@@ -338,8 +354,6 @@ def setup_autobridge(ip, bridge_value):
         ws.connect(url)
         config = json.loads(ws.recv())["payload"]
         global_id = next(iter(config["Global"]))
-        print(config["Global"])
-        print(global_id)
         change(ws, global_id, "auto_network_bridge", str(bridge_value))
     finally:
         ws.close()
@@ -387,7 +401,7 @@ def get_GPO_id(ip, gpo_name):
         config = json.loads(ws.recv())["elements"]
         for element in config:
             if element["module"] == "CyElement.NetGpio.GPO":
-                if element["properties"]["name"] == gpo_name:
+                if element["properties"]["name"] == gpo_name and element["properties"]["available"] == "1":
                     return element["key"]
     finally:
         ws.close()
@@ -400,7 +414,6 @@ def delete_tally_actions(ip):
         config = json.loads(ws.recv())["elements"]
         for element in config:
             if element["module"] == "CyElement.TallyAction":
-                print(element)
                 ws.send(json.dumps({"delete":[element["key"]]}))
     finally:
         ws.close()
@@ -414,7 +427,10 @@ def set_tally_action(ip, cam_number, gpo_name, tally_type="red"):
         ws.connect(url)
         cam_id = get_cam_id(ip, cam_number)
         gpo_id = get_GPO_id(ip, gpo_name)
-        ws.send(json.dumps({"new":["CyElement.TallyAction","red","",cam_id, gpo_id]}))
+        msg = {"new":["CyElement.TallyAction","red","",cam_id, gpo_id]}
+        if debug:
+            print("\t>", msg)
+        ws.send(json.dumps(msg))
     finally:
         ws.close()
 
