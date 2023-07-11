@@ -1,0 +1,92 @@
+cy-rcp-50-22:
+  - remi: cyanview
+  - bus:
+    - type: "atom"
+      port: "RIO-50-22:1"
+  - cameras:
+    - number: 1
+      name: "DC"
+      model: "AtomMiniZoom"
+      serial:
+        port: "RIO-50-22:1:AtomBus:1"
+    - number: 2
+      name: "DC"
+      model: "AtomMiniZoom"
+      serial:
+        port: "RIO-50-22:1:AtomBus:2"
+    - number: 3
+      name: "DC"
+      model: "AtomMiniZoom"
+      serial:
+        port: "RIO-50-22:1:AtomBus:3"
+    - number: 4
+      name: "DC"
+      model: "AtomMiniZoom"
+      serial:
+        port: "RIO-50-22:1:AtomBus:4"
+    - number: 5
+      name: "DC"
+      model: "AtomMiniZoom"
+      serial:
+        port: "RIO-50-22:1:AtomBus:5"
+    - number: 6
+      name: "DC"
+      model: "AtomMiniZoom"
+      serial:
+        port: "RIO-50-22:1:AtomBus:6"
+    - number: 7
+      name: "DC"
+      model: "AtomMiniZoom"
+      serial:
+        port: "RIO-50-22:1:AtomBus:7"
+    - number: 8
+      name: "DC"
+      model: "AtomMiniZoom"
+      serial:
+        port: "RIO-50-22:1:AtomBus:8"
+
+cy-rcp-40-142:
+  - remi: cyanview
+  - imported:
+    - from: cy-rio-50-22
+      number: 1
+    - from: cy-rio-50-22
+      number: 2
+    - from: cy-rio-50-22
+      number: 3
+    - from: cy-rio-50-22
+      number: 4
+    - from: cy-rio-50-22
+      number: 5
+    - from: cy-rio-50-22
+      number: 6
+    - from: cy-rio-50-22
+      number: 7
+    - from: cy-rio-50-22
+      number: 8
+  - routers:
+    - model: AtemSwitcher
+      name : "ATEM1"
+      ip : "10.192.10.10"
+      inputs: "1-12"
+      outputs: "1-5,Prv1,Prg1"
+      red_tally: "AUTO"
+      green_tally: "AUTO"
+      shared: "1"
+      inputs_link:
+        - cam: 1
+          input: 1
+        - cam: 2
+          input: 2
+        - cam: 3
+          input: 3
+        - cam: 4
+          input: 4
+        - cam: 5
+          input: 5
+        - cam: 6
+          input: 6
+        - cam: 7
+          input: 7
+        - cam: 8
+          input: 8
