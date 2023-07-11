@@ -1,7 +1,8 @@
 import websocket
 import json
+import time
 
-debug=False
+debug=True
 
 def check_answer(ws):
     change = None
@@ -34,7 +35,7 @@ def do_action(ws, actions):
     response = check_answer(ws)
     if debug:
         print("\t<", response)
-    
+
     return response[-1] if response else None
 
 def do_action_no_ws(ip, actions):
@@ -138,6 +139,7 @@ def setup_remi(ip, tags):
         config = json.loads(ws.recv())
         remi_id, _ = get_remi_id(ip)
         change(ws, remi_id, "tags", tags)
+        time.sleep(2)
     finally:
         ws.close()
 
@@ -469,7 +471,7 @@ def delete_BUS(ip):
     finally:
         ws.close()
 
-def create_BUS(ip, bus_type, bus_port):
+def create_BUS(ip, bus_type, bus_port, bidirectional="1"):
     print("create BUS", ip, bus_type, bus_port)
     url = f"ws://{ip}/ws/ui"
     ws = websocket.WebSocket()
@@ -478,9 +480,29 @@ def create_BUS(ip, bus_type, bus_port):
         bus_id  = do_action(ws, {"new" : ["CyElement.Bus", bus_type]})
         port_action = get_port_id(ip, bus_id, bus_port, "Interface")
         do_action(ws, port_action)
+        change(ws, bus_id, "bidirectional", bidirectional)
+        time.sleep(1)
     finally:
         ws.close()
 
+def list_cameras_models(ip):
+    url = f"ws://{ip}/ws/ui"
+    ws = websocket.WebSocket()
+    try:
+        ws.connect(url)
+        config = json.loads(ws.recv())["payload"]
+        cam_id = do_action(ws, {"new" : ["CyElement.Camera"]})
+        models = get_option(ws, cam_id, "Model")
+        do_action(ws, {"delete" : [cam_id]})
+        for item in models:
+            try:
+                brand, model = item[0].split(" - ")
+                code = item[1]['update']['changes']['model']
+                print(f"{brand:<20}{model:<20}{code}")
+            except:
+                pass
+    finally:
+        ws.close()
 
 def list_config_blocks(ip):
     url = f"ws://{ip}/ws/ui"

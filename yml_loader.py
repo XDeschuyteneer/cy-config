@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import yaml
+import click
 from cy_config import *
 
 def yml_router_setup(device_ip, params):
@@ -33,7 +34,7 @@ callback_map = {
     "imported": yml_imported_setup,
     "cc": lambda device_ip, params : setup_cc(device_ip, params["model"], params["name"], params["ip"]),
     "tally_actions" : lambda device_ip, params : set_tally_action(device_ip, params["cam_number"], params["GPO"]),
-    "bus": lambda device_ip, params : create_BUS(device_ip, params["type"], params["port"]),
+    "bus": lambda device_ip, params : create_BUS(device_ip, params["type"], params["port"], params["bidirectional"] if "bidirectional" in params else "1"),
     "ip" : lambda device_ip, params : None
 }
 
@@ -46,7 +47,10 @@ def get_ip(serial):
     except:
         return None
 
-def main(filename):
+@click.command()
+@click.option('-f', '--filename', required=True, type=str, help='YML file to load')
+@click.option('-v', '--verbose', is_flag=True, show_default=True, default=False, help='Enable debug logs')
+def main(filename, verbose):
     with open(filename, newline='') as file:
         data = yaml.safe_load_all(file)
         for block in data:
@@ -78,5 +82,4 @@ def main(filename):
                         except KeyError:
                             print(f"Unsupported command {key}")
 if __name__ == "__main__":
-    #main("./config.yml")
-    main("./bm.yml")
+    main()
