@@ -8,18 +8,8 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-Update the main.py rcp/rio ip.
-Then run:
+Create a YML file, you can find examples in the `examples/yml` folder.
 
-```bash
-./main.py
-```
+then run: `./yml_loader.py -f <path_to_yml_file>`
 
-It will create:
-* an ATEM on RCP
-* setup remi on RIO/RCP
-* 3 cams on RIO
-* import 2 cams from RIO to RCP
-* create 3rd cam on RCP
-* 2 boxio on RCP
-* link 3 channels to 3 RCP cams
+Example: `./yml_loader.py -f ./examples/yml/canon.yml`
