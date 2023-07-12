@@ -220,9 +220,12 @@ def delete_routers(ip):
         ws.connect(url)
         config = json.loads(ws.recv())
         for router_id in config["payload"]["Router"]:
+            if config["payload"]["Router"][router_id]["Model"] == "Shared":
+                continue
             do_action(ws, {"delete" : [router_id]})
     finally:
         ws.close()
+
 
 def setup_router(ip, model, name, router_ip, input_range, output_range, red_tally, green_tally, shared="1"):
     logger.info(f"setup_router({ip}, {model}, {name}, {router_ip}, {input_range}, {output_range}, {red_tally}, {green_tally}, {shared})")
@@ -233,16 +236,26 @@ def setup_router(ip, model, name, router_ip, input_range, output_range, red_tall
         router_id = do_action(ws, {"new" : [f"CyElement.{model}"]})
         change(ws, router_id, "name", name)
         change(ws, router_id, "ip", router_ip)
+        change(ws, router_id, "shared", shared)
         change(ws, router_id, "num_inputs", input_range)
         change(ws, router_id, "num_outputs", output_range)
         change(ws, router_id, "tally_red", red_tally)
         change(ws, router_id, "tally_green", green_tally)
-        change(ws, router_id, "shared", shared)
-
         return router_id
     finally:
-        ws.close()     
+        ws.close()
 
+def update_router_tally(ip, router_name, red_tally, green_tally):
+    router_id = get_router_id(ip, router_name)
+    url = f"ws://{ip}/ws/ui"
+    ws = websocket.WebSocket()
+    try:
+        ws.connect(url)
+        change(ws, router_id, "tally_red", red_tally)
+        change(ws, router_id, "tally_green", green_tally)
+        return router_id
+    finally:
+        ws.close()
 
 def get_router_id(ip, router_name):
     url = f"ws://{ip}/ws/ui"
@@ -254,7 +267,7 @@ def get_router_id(ip, router_name):
             if config["payload"]["Router"][router_id]["Name"] == router_name:
                 return router_id
     finally:
-        ws.close()   
+        ws.close()
 
 def get_cam_id(ip, cam_number):
     url = f"ws://{ip}/ws/ui"
@@ -276,12 +289,15 @@ def link_input(ip, router_name, cam_number, input_number):
         ws.connect(url)
         config = json.loads(ws.recv())
         router_id = get_router_id(ip, router_name)
-        router_inputs = get_option(ws, router_id, "Inputs")
-        for cam_entry in router_inputs[str(input_number)]:
-            if cam_entry[0]:
-                if cam_entry[0].split(" ")[0] == str(cam_number):
-                    for actions in cam_entry[1]:
-                        do_action(ws, actions)
+        if router_id:
+            router_inputs = get_option(ws, router_id, "Inputs")
+            for cam_entry in router_inputs[str(input_number)]:
+                if cam_entry[0]:
+                    if cam_entry[0].split(" ")[0] == str(cam_number):
+                        for actions in cam_entry[1]:
+                            do_action(ws, actions)
+        else:
+            logger.error(f"Router {router_name} not found")
     finally:
         ws.close()
 

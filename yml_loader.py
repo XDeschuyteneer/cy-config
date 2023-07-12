@@ -10,7 +10,11 @@ logger = logging.getLogger(__name__)
 
 
 def yml_router_setup(device_ip, params):
-    cy_config.setup_router(device_ip, params["model"], params["name"], params["ip"], params["inputs"], params["outputs"], params["red_tally"], params["green_tally"], params["shared"])
+    if params["name"][0] == "@":
+        # shared router
+        cy_config.update_router_tally(device_ip, params["name"], params["red_tally"], params["green_tally"])
+    else:
+        cy_config.setup_router(device_ip, params["model"], params["name"], params["ip"], params["inputs"], params["outputs"], params["red_tally"], params["green_tally"], params["shared"])
     for input in params["inputs_link"]:
         cy_config.link_input(device_ip, params["name"], input["cam"], input["input"])
     for output in params["outputs_link"]:
@@ -69,35 +73,40 @@ def main(filename, verbosity):
     if verbosity not in log_levels:
         logging.error(f"Invalid verbosity level {verbosity}")
     logging.basicConfig(stream=sys.stdout, level=log_levels[verbosity])
-    with open(filename, newline='') as file:
-        data = yaml.safe_load_all(file)
-        for block in data:
-            for device in block:
-                device_ip = get_ip(device)
-                if not device_ip:
-                    logger.error(f"Invalid device {device}")
-                    continue
-                cy_config.delete_remi(device_ip)
-                cy_config.delete_routers(device_ip)
-                cy_config.delete_ccs(device_ip)
-                cy_config.delete_cams(device_ip)
-                cy_config.delete_tally_actions(device_ip)
-                cy_config.delete_LAN_ip(device_ip)
-                cy_config.delete_BUS(device_ip)
-                for item in block[device]:
-                    for key in item:
-                        params = item[key]
-                        try:
-                            if not isinstance(params, list):
-                                params = [params]
-                            for param in params:
-                                logger.info(f"Calling @{key}@ fct with @{param}@")
-                                fct = callback_map[key]
-                                try:
-                                    fct(device_ip, param)
-                                except KeyError as e:
-                                   logger.info(f"Missing param {e} for {key} item")
-                        except KeyError:
-                            logger.error(f"Unsupported command {key}")
+    try:
+        with open(filename, newline='') as file:
+            data = yaml.safe_load_all(file)
+            for block in data:
+                for device in block:
+                    device_ip = get_ip(device)
+                    if not device_ip:
+                        logger.error(f"Invalid device {device}")
+                        continue
+                    cy_config.delete_remi(device_ip)
+                    cy_config.delete_routers(device_ip)
+                    cy_config.delete_ccs(device_ip)
+                    cy_config.delete_cams(device_ip)
+                    cy_config.delete_tally_actions(device_ip)
+                    cy_config.delete_LAN_ip(device_ip)
+                    cy_config.delete_BUS(device_ip)
+                    for item in block[device]:
+                        for key in item:
+                            params = item[key]
+                            try:
+                                if not isinstance(params, list):
+                                    params = [params]
+                                for param in params:
+                                    logger.info(f"Calling @{key}@ fct with @{param}@")
+                                    fct = callback_map[key]
+                                    try:
+                                        fct(device_ip, param)
+                                    except KeyError as e:
+                                        logger.info(f"Missing param {e} for {key} item")
+                            except KeyError:
+                                logger.error(f"Unsupported command {key}")
+    except FileNotFoundError:
+        logger.error(f"File {filename} not found")
+    except yaml.scanner.ScannerError:
+        logger.error(f"Invalid YML file {filename}")
 if __name__ == "__main__":
     main()
