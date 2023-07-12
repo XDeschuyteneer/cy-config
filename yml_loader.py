@@ -3,6 +3,11 @@
 import yaml
 import click
 import cy_config
+import logging
+import sys
+
+logger = logging.getLogger(__name__)
+
 
 def yml_router_setup(device_ip, params):
     cy_config.setup_router(device_ip, params["model"], params["name"], params["ip"], params["inputs"], params["outputs"], params["red_tally"], params["green_tally"], params["shared"])
@@ -51,18 +56,26 @@ def get_ip(serial):
 
 @click.command()
 @click.option('-f', '--filename', required=True, type=str, help='YML file to load')
-@click.option('-v', '--verbose', is_flag=True, show_default=True, default=False, help='Enable debug logs')
-def main(filename, verbose):
+@click.option('-v', '--verbosity', required=False, show_default=True, type=str, default="WARNING", help='Enable debug logs')
+def main(filename, verbosity):
     print(f"Loading {filename}")
-    print(f"Verbose mode: {verbose}")
-    cy_config.verbose = verbose
+    print(f"Verbose mode: {verbosity}")
+    log_levels = {
+        "DEBUG": logging.DEBUG,
+        "INFO": logging.INFO,
+        "WARNING": logging.WARNING,
+        "ERROR": logging.ERROR
+    }
+    if verbosity not in log_levels:
+        logging.error(f"Invalid verbosity level {verbosity}")
+    logging.basicConfig(stream=sys.stdout, level=log_levels[verbosity])
     with open(filename, newline='') as file:
         data = yaml.safe_load_all(file)
         for block in data:
             for device in block:
                 device_ip = get_ip(device)
                 if not device_ip:
-                    print(f"Invalid device {device}")
+                    logger.error(f"Invalid device {device}")
                     continue
                 cy_config.delete_remi(device_ip)
                 cy_config.delete_routers(device_ip)
@@ -78,13 +91,13 @@ def main(filename, verbose):
                             if not isinstance(params, list):
                                 params = [params]
                             for param in params:
-                                print(f"Calling @{key}@ fct with @{param}@")
+                                logger.info(f"Calling @{key}@ fct with @{param}@")
                                 fct = callback_map[key]
                                 try:
                                     fct(device_ip, param)
                                 except KeyError as e:
-                                   print(f"Missing param {e} for {key} item")
+                                   logger.info(f"Missing param {e} for {key} item")
                         except KeyError:
-                            print(f"Unsupported command {key}")
+                            logger.error(f"Unsupported command {key}")
 if __name__ == "__main__":
     main()
