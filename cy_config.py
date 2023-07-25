@@ -416,16 +416,16 @@ def delete_LAN_ip(ip):
         ws.close()
 
 def add_LAN_ip(ip, lan_itf, lan_ip, lan_mask):
-    logger.info("add_LAN_ip({ip}, {lan_itf}, {lan_ip}, {lan_mask})")
+    logger.info(f"add_LAN_ip({ip}, {lan_itf}, {lan_ip}, {lan_mask})")
     url = f"ws://{ip}/ws/ui"
     ws = websocket.WebSocket()
     try:
         ws.connect(url)
         config = json.loads(ws.recv())["payload"]
         new_id = do_action(ws, {"new" : ["CyElement.LanIp"]})
-        change(ws, new_id, "interface", lan_itf)
-        change(ws, new_id, "ip", lan_ip)
-        change(ws, new_id, "mask", lan_mask)
+        change(ws, new_id, "interface", str(lan_itf))
+        change(ws, new_id, "ip", str(lan_ip))
+        change(ws, new_id, "mask", str(lan_mask))
     finally:
         ws.close()
 
