@@ -72,15 +72,6 @@ def change(ws, cam_id, key, value):
 def connect(ws, A_id, B_id):
     return do_action(ws, {"connect" : [A_id, B_id]})
 
-def connect2(A_id, B_id):
-    url = f"ws://{ip}/ws/ui"
-    ws = websocket.WebSocket()
-    try:
-        ws.connect(url)
-        connect(ws, A_id, B_id)
-    finally:
-        ws.close()
-
 def get_port_id(ip, cam_id, port_name, port_type):
     logger.info(f"get_port_id lens({cam_id}, {port_name})")
     url = f"ws://{ip}/ws/ui"
@@ -464,8 +455,6 @@ def set_tally_action(ip, cam_number, gpo_name, tally_type="red"):
         cam_id = get_cam_id(ip, cam_number)
         gpo_id = get_GPO_id(ip, gpo_name)
         msg = {"new":["CyElement.TallyAction","red","",cam_id, gpo_id]}
-        if debug:
-            print("\t>", msg)
         ws.send(json.dumps(msg))
     finally:
         ws.close()
