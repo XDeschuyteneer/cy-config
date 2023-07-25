@@ -1,0 +1,20 @@
+localhost:8080:
+  - ip: localhost:8080
+  - cameras:
+    - number: 1
+      name: cam1
+      model: ""
+    - number: 2
+      name: cam2
+      model: ""
+    - number: 3
+      name: cam3
+      model: ""
+  - tally_actions:
+      - cam_number: 1
+        GPO: "O1"
+      - cam_number: 2
+        GPO: "O2"
+      - cam_number: 3
+        GPO: "O3"
+      
