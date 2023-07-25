@@ -198,7 +198,7 @@ def import_cam(ip, device, cam_number):
         for key in config["payload"]['Remi']:
             if config["payload"]['Remi'][key]:
                 item = config["payload"]['Remi'][key]
-                if "Active" in item and item["Active"]:
+                if "Connections" in item and item["Connections"]:
                     for cnx_id in item["Connections"]:
                         if item["Connections"][cnx_id]["name"] == device:
                             for cam in item["Connections"][cnx_id]['cameras']:
