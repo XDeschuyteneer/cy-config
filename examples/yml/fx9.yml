@@ -1,0 +1,15 @@
+cy-rio-50-22:
+  - remi: xavier
+  - cameras:
+    - number: 1
+      name: "FX9-front"
+      model: "SonyFX9"
+      ip:
+        ip: 10.192.1.1
+        login: pouet
+        password: pouetpwd
+cy-rcp-40-142:
+  - remi: xavier
+  - imported:
+    - from: cy-rio-50-22
+      number: 1
